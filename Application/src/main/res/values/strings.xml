@@ -20,4 +20,8 @@
     <string name="may_launch_button_text">May Launch URL</string>
     <string name="launch_button_text">Launch URL in a Chrome Custon Tab</string>
     <string name="connect_button_text">Connect to the service</string>
+    <string name="title_activity_customlink">Customlink</string>
+
+    <string name="hello_world">Hello world!</string>
+    <string name="action_settings">Settings</string>
 </resources>
