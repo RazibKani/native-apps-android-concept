@@ -6,11 +6,14 @@ android {
     buildToolsVersion '23.0.0'
     sourceSets {
         main.manifest.srcFile 'AndroidManifest.xml'
-        main.java.srcDirs = ['java']
-        main.aidl.srcDirs = ['java']
+        main.java.srcDirs = ['src']
+        main.aidl.srcDirs = ['src']
         main.res.srcDir 'res'
         main.assets.srcDir 'assets'
-        main.resources.srcDir 'resources'
+        main.resources.srcDir 'java'
+
+        androidTest.setRoot('tests')
+        androidTest.java.srcDir('tests/src/')
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_7
@@ -19,4 +22,5 @@ android {
 }
 
 dependencies {
+    compile "com.android.support:support-annotations:22.2.0+"
 }

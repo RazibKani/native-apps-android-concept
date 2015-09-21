@@ -26,13 +26,20 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.support.customtabs.CustomTabsCallback;
 import android.support.customtabs.CustomTabsClient;
+import android.support.customtabs.CustomTabsIntent;
 import android.support.customtabs.CustomTabsServiceConnection;
 import android.support.customtabs.CustomTabsSession;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
+
+import org.chromium.customtabsclient.shared.CustomTabsHelper;
 
 /**
  * Example client activity for a Chrome Custom Tanb.
@@ -42,6 +49,8 @@ public class MainActivity extends Activity implements OnClickListener {
     private EditText mEditText;
     private CustomTabsSession mCustomTabsSession;
     private CustomTabsClient mClient;
+    private CustomTabsServiceConnection mConnection;
+    private String mPackageNameToBind;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,17 +61,35 @@ public class MainActivity extends Activity implements OnClickListener {
         Button warmupButton = (Button) findViewById(R.id.warmup_button);
         Button mayLaunchButton = (Button) findViewById(R.id.may_launch_button);
         Button launchButton = (Button) findViewById(R.id.launch_button);
+        Spinner spinner = (Spinner) findViewById(R.id.spinner);
         mEditText.requestFocus();
         connectButton.setOnClickListener(this);
         warmupButton.setOnClickListener(this);
         mayLaunchButton.setOnClickListener(this);
         launchButton.setOnClickListener(this);
+
+        spinner.setAdapter(new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item,
+                CustomTabsHelper.getPackages()));
+        spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (TextUtils.isEmpty(parent.getItemAtPosition(position).toString())) {
+                    onNothingSelected(parent);
+                }
+                mPackageNameToBind = parent.getItemAtPosition(position).toString();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                mPackageNameToBind = null;
+            }
+        });
     }
 
     @Override
     protected void onDestroy() {
+        unbindCustomTabsService();
         super.onDestroy();
-        // TODO: Unbind from the service here. This is not exposed by CustomTabsClient.
     }
 
     private CustomTabsSession getSession() {
@@ -71,13 +98,8 @@ public class MainActivity extends Activity implements OnClickListener {
         } else if (mCustomTabsSession == null) {
             mCustomTabsSession = mClient.newSession(new CustomTabsCallback() {
                 @Override
-                public void onUserNavigationStarted(Uri url, Bundle extras) {
-                    Log.w(TAG, "onUserNavigationStarted: url = " + url.toString());
-                }
-
-                @Override
-                public void onUserNavigationFinished(Uri url, Bundle extras) {
-                    Log.w(TAG, "onUserNavigationFinished: url = " + url.toString());
+                public void onNavigationEvent(int navigationEvent, Bundle extras) {
+                    Log.w(TAG, "onNavigationEvent: Code = " + navigationEvent);
                 }
             });
         }
@@ -86,38 +108,50 @@ public class MainActivity extends Activity implements OnClickListener {
 
     private void bindCustomTabsService() {
         if (mClient != null) return;
+        if (TextUtils.isEmpty(mPackageNameToBind)) {
+            mPackageNameToBind = CustomTabsHelper.getPackageNameToUse(this);
+            if (mPackageNameToBind == null) return;
+        }
         final View connectButton = findViewById(R.id.connect_button);
         final View warmupButton = findViewById(R.id.warmup_button);
         final View mayLaunchButton = findViewById(R.id.may_launch_button);
         final View launchButton = findViewById(R.id.launch_button);
-        String packageName = CustomTabActivityManager.getInstance().getPackageNameToUse(this);
-        if (packageName == null) return;
-        boolean ok = CustomTabsClient.bindCustomTabsService(
-                this, packageName, new CustomTabsServiceConnection() {
-                    @Override
-                    public void onCustomTabsServiceConnected(ComponentName name, CustomTabsClient client) {
-                        connectButton.setEnabled(false);
-                        warmupButton.setEnabled(true);
-                        mayLaunchButton.setEnabled(true);
-                        launchButton.setEnabled(true);
-                        mClient = client;
-                    }
+        mConnection = new CustomTabsServiceConnection() {
+            @Override
+            public void onCustomTabsServiceConnected(ComponentName name, CustomTabsClient client) {
+                connectButton.setEnabled(false);
+                warmupButton.setEnabled(true);
+                mayLaunchButton.setEnabled(true);
+                launchButton.setEnabled(true);
+                mClient = client;
+            }
 
-                    @Override
-                    public void onServiceDisconnected(ComponentName name) {
-                        connectButton.setEnabled(true);
-                        warmupButton.setEnabled(false);
-                        mayLaunchButton.setEnabled(false);
-                        launchButton.setEnabled(false);
-                        mClient = null;
-                    }
-                });
-        if (ok) connectButton.setEnabled(false);
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                connectButton.setEnabled(true);
+                warmupButton.setEnabled(false);
+                mayLaunchButton.setEnabled(false);
+                launchButton.setEnabled(false);
+                mClient = null;
+            }
+        };
+        boolean ok = CustomTabsClient.bindCustomTabsService(this, mPackageNameToBind, mConnection);
+        if (ok) {
+            connectButton.setEnabled(false);
+        } else {
+            mConnection = null;
+        }
+    }
+
+    private void unbindCustomTabsService() {
+        if (mConnection == null) return;
+        unbindService(mConnection);
+        mClient = null;
+        mCustomTabsSession = null;
     }
 
     @Override
     public void onClick(View v) {
-        CustomTabActivityManager customTabManager = CustomTabActivityManager.getInstance();
         String url = mEditText.getText().toString();
         int viewId = v.getId();
 
@@ -133,20 +167,21 @@ public class MainActivity extends Activity implements OnClickListener {
             if (mClient != null) success = session.mayLaunchUrl(Uri.parse(url), null, null);
             if (!success) findViewById(R.id.may_launch_button).setEnabled(false);
         } else if (viewId == R.id.launch_button) {
-            CustomTabsSession session = getSession();
-            CustomTabUiBuilder uiBuilder = new CustomTabUiBuilder();
-            uiBuilder.setToolbarColor(Color.BLUE);
-            uiBuilder.setShowTitle(true);
-            uiBuilder.setCloseButtonStyle(CustomTabUiBuilder.CLOSE_BUTTON_ARROW);
-            prepareMenuItems(uiBuilder);
-            prepareActionButton(uiBuilder);
-            uiBuilder.setStartAnimations(this, R.anim.slide_in_right, R.anim.slide_out_left);
-            uiBuilder.setExitAnimations(this, R.anim.slide_in_left, R.anim.slide_out_right);
-            customTabManager.launchUrl(this, session, url, uiBuilder);
+            CustomTabsIntent.Builder builder = new CustomTabsIntent.Builder(getSession());
+            builder.setToolbarColor(Color.BLUE).setShowTitle(true);
+            prepareMenuItems(builder);
+            prepareActionButton(builder);
+            builder.setStartAnimations(this, R.anim.slide_in_right, R.anim.slide_out_left);
+            builder.setExitAnimations(this, R.anim.slide_in_left, R.anim.slide_out_right);
+            builder.setCloseButtonIcon(
+                    BitmapFactory.decodeResource(getResources(), R.drawable.ic_arrow_back));
+            CustomTabsIntent customTabsIntent = builder.build();
+            CustomTabsHelper.addKeepAliveExtra(this, customTabsIntent.intent);
+            customTabsIntent.launchUrl(this, Uri.parse(url));
         }
     }
 
-    private void prepareMenuItems(CustomTabUiBuilder uiBuilder) {
+    private void prepareMenuItems(CustomTabsIntent.Builder builder) {
         Intent menuIntent = new Intent();
         menuIntent.setClass(getApplicationContext(), this.getClass());
         // Optional animation configuration when the user clicks menu items.
@@ -154,10 +189,10 @@ public class MainActivity extends Activity implements OnClickListener {
                 android.R.anim.slide_out_right).toBundle();
         PendingIntent pi = PendingIntent.getActivity(getApplicationContext(), 0, menuIntent, 0,
                 menuBundle);
-        uiBuilder.addMenuItem("Menu entry 1", pi);
+        builder.addMenuItem("Menu entry 1", pi);
     }
 
-    private void prepareActionButton(CustomTabUiBuilder uiBuilder) {
+    private void prepareActionButton(CustomTabsIntent.Builder builder) {
         // An example intent that sends an email.
         Intent actionIntent = new Intent(Intent.ACTION_SEND);
         actionIntent.setType("*/*");
@@ -165,6 +200,6 @@ public class MainActivity extends Activity implements OnClickListener {
         actionIntent.putExtra(Intent.EXTRA_SUBJECT, "example");
         PendingIntent pi = PendingIntent.getActivity(getApplicationContext(), 0, actionIntent, 0);
         Bitmap icon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_launcher);
-        uiBuilder.setActionButton(icon, pi);
+        builder.setActionButton(icon, "send email", pi);
     }
 }
