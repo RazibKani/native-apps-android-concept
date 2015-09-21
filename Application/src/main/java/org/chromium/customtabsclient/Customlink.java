@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.net.Uri;
+import android.view.View;
+import android.widget.TextView;
 
 import org.chromium.customtabsclient.R;
 
@@ -13,6 +16,13 @@ public class Customlink extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_customlink);
+
+        Uri url = getIntent().getData();
+        String code = url.getQueryParameter("code");
+
+        TextView codeTextView = (TextView)findViewById(R.id.code_textview);
+        codeTextView.setText( code );
+
     }
 
     @Override
