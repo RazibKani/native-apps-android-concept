@@ -1,3 +1,28 @@
+# OAuth 2.0 for Native Apps – Android Proof of Concept
+
+This fork is an adaptation of the Chrome Custom Tab sample to demonstrate
+OAuth 2.0 flows using custom browser tabs.
+
+## Configuration Steps
+
+First, register an *iOS* OAuth 2.0 client on https://console.developers.google.com/
+as this is currently the only client type that supports Custom URI schemes.
+
+Google supports Custom URI schemes that are the reverse of the iOS client id, so the client
+`330063496943-m8q5o7fppge59gfjgai788477dvst4np.apps.googleusercontent.com`, becomes: `com.googleusercontent.apps.330063496943-m8q5o7fppge59gfjgai788477dvst4np`
+and the redirect becomes `com.googleusercontent.apps.330063496943-m8q5o7fppge59gfjgai788477dvst4np:/your_path`
+(note the single slash, as custom URI schemes don't have an authority).
+
+Then, register that scheme in the `AndroidManifest.xml` for an Action in your app, see [my change](https://github.com/WilliamDenniss/native-apps-android-concept/commit/aecf03c9253648a3ad1757af34e44f78316bc06d?diff=unified#diff-43b3c8f22d85cf26001038741b344eb4) for an example.
+
+Once configured, build your auth request using the Custom URI scheme redirect, such as [this one](https://accounts.google.com/o/oauth2/auth?redirect_uri=com.googleusercontent.apps.581786658708-6p376uvvj9v1nndcljh2a0o0apss8n5c%3A%2Foauth2callback&response_type=code&client_id=581786658708-6p376uvvj9v1nndcljh2a0o0apss8n5c.apps.googleusercontent.com&scope=profile+email+openid&approval_prompt=force&access_type=offline).
+
+
+
+
+---
+*Original Chrome Custom Tab readme follows:*
+
 # Custom Tabs - Example and Usage
 
 ## Summary
